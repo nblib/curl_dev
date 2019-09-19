@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <curl/curl.h>
 #include "request.h"
+#include<stdlib.h>
+#include<time.h>
 
 
 
@@ -12,7 +14,7 @@ int global_Success;
 int THREAD_COUNT = 20; // 启用线程数
 int TOTAL_COUNT = 100;  // 总请求数量
 char *URL = "https://example.com"; // url
-int DEBUG = 0; //1输出响应内容,0不输出
+int DEBUG = 1; //1输出响应内容,0不输出
 
 int main(int argc, char *argv[])
 {

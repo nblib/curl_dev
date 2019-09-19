@@ -1,8 +1,12 @@
 #include "request.h"
 #include<stdlib.h>
 #include<string.h>
+#include<uuid/uuid.h>
 extern pthread_mutex_t mutex;
 extern int global_Success;
+
+int str_contain_char(char *src, char target);
+char* url_add_uuid(char *rawUrl);
 
 size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
@@ -19,7 +23,9 @@ size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
     return size * nmemb; 
 }
 
-
+/**
+ * 发起网络请求
+ * */
 void *process_request(void* v)
 {
     CURL *curl;
@@ -40,6 +46,8 @@ void *process_request(void* v)
 
     free(v);
 
+    
+
     success = 0;
 
     //init
@@ -48,12 +56,22 @@ void *process_request(void* v)
         
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &debug);
-        curl_easy_setopt(curl, CURLOPT_URL, url);
+
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
     
         int i;
         for(i = 0; i < count; i++)
         {
+            //url add uuid
+            char *uuid_url = url_add_uuid(url);
+            if (uuid_url == NULL)
+            {
+                //申请失败
+                continue;
+            }
+            
+    
+            curl_easy_setopt(curl, CURLOPT_URL, uuid_url);
             /* Perform the request, res will get the return code */ 
             res = curl_easy_perform(curl);
             /* Check for errors */ 
@@ -72,6 +90,8 @@ void *process_request(void* v)
                     success++;
                 }
             }
+            //free
+            free(uuid_url);
         }
         /* 每次会话结束时调用,和 curl_easy_init成对出现*/ 
         curl_easy_cleanup(curl);
@@ -85,7 +105,9 @@ void *process_request(void* v)
 
 
 
-
+/**
+ * 多线程运行,并等待返回
+ * */
 void multi_thread_process(int totalCount, int threadCount, char *url, int debug){
     pthread_t threads[threadCount];
     int remain_cnt,avg_cnt;
@@ -119,4 +141,76 @@ void multi_thread_process(int totalCount, int threadCount, char *url, int debug)
             printf("cannot join with thread[%d]\n",i);
         }
     }
+}
+
+/**
+ * 判断src中是否包含target
+ * */
+int str_contain_char(char *src, char target)
+{
+    int rst = 0;
+    
+    if (src == NULL || *src == '\0'){
+        return rst;
+    }
+
+    while (*src != '\0')
+    {
+        if (*src == target)
+        {
+            rst = 1;
+            break;
+        }
+        src++;
+    }
+    return rst;
+}
+/**
+ * 给url添加uuid参数,返回字符串需要手动释放, 申请空间失败返回NULL
+ * */
+char* url_add_uuid(char *rawUrl)
+{
+    uuid_t uuid;
+    char uuidstr[36];
+ 
+    uuid_generate(uuid);
+    uuid_unparse(uuid, uuidstr); 
+
+    int raw_url_len = strlen(rawUrl);
+    char* uuid_str = malloc(raw_url_len + 1 + 1 + 4 + 1 + 36);
+    if (uuid_str == NULL)
+    {
+        return NULL;
+    }
+    memcpy(uuid_str, rawUrl, raw_url_len + 1);
+    //不以/结尾
+    if (uuid_str[raw_url_len - 1] != '/')
+    {
+        //是否?结尾
+        if (uuid_str[raw_url_len - 1] == '?')
+        {
+            memcpy(uuid_str + raw_url_len, "uuid=", 5);
+            raw_url_len += 5;
+            memcpy(uuid_str + raw_url_len,uuidstr, 36);
+             raw_url_len += 36;
+            uuid_str[raw_url_len] = 0;
+        }else{
+            if(str_contain_char(uuid_str,'?') == 1)
+            {
+                memcpy(uuid_str + raw_url_len, "&uuid=",6);
+                raw_url_len += 6;
+                memcpy(uuid_str + raw_url_len,uuidstr, 36);
+                raw_url_len += 36;
+                uuid_str[raw_url_len] = 0;
+            }else
+            {
+                memcpy(uuid_str + raw_url_len, "?uuid=",6);
+                raw_url_len += 6;
+                memcpy(uuid_str + raw_url_len,uuidstr, 36);
+                raw_url_len += 36;
+                uuid_str[raw_url_len] = 0;
+            }
+        }
+    }
+    return uuid_str;
 }
