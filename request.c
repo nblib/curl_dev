@@ -1,14 +1,19 @@
 #include "request.h"
 #include<stdlib.h>
-
+#include<string.h>
 extern pthread_mutex_t mutex;
 extern int global_Success;
 
 size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
+    char* content = NULL;
     //debug输出响应内容
     if (*(int*)userdata == 1){
-        printf(ptr);
+        content = malloc(size * nmemb + 1);
+        memcpy(content, ptr, size * nmemb);
+        content[size * nmemb] = 0;
+        printf(content);
+        free(content);
     }
   
     return size * nmemb; 
@@ -32,6 +37,8 @@ void *process_request(void* v)
     url = arg->url;
     count =  arg->count;
     debug = arg->debug;
+
+    free(v);
 
     success = 0;
 
