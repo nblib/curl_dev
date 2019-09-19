@@ -1,7 +1,8 @@
 #include "request.h"
 #include<stdlib.h>
 
-
+extern pthread_mutex_t mutex;
+extern int global_Success;
 
 size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
@@ -22,6 +23,8 @@ void *process_request(void* v)
     char *url;
     int count;
     int debug;
+
+    int success;
     
     //检查参数
     struct processArg *arg;
@@ -30,6 +33,8 @@ void *process_request(void* v)
     count =  arg->count;
     debug = arg->debug;
 
+    success = 0;
+
     //init
     curl = curl_easy_init();
     if(curl) {
@@ -37,6 +42,7 @@ void *process_request(void* v)
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &debug);
         curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
     
         int i;
         for(i = 0; i < count; i++)
@@ -53,11 +59,20 @@ void *process_request(void* v)
             {
                 long response_code;
                 curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-                printf("response code: %lu \n", response_code);
+                // printf("response code: %lu \n", response_code);
+                if (response_code == 200)
+                {
+                    success++;
+                }
             }
         }
         /* 每次会话结束时调用,和 curl_easy_init成对出现*/ 
         curl_easy_cleanup(curl);
+
+        //全局统计
+        pthread_mutex_lock(&mutex);
+        global_Success = global_Success + success;
+        pthread_mutex_unlock(&mutex);
     }
 }
 
